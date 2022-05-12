@@ -1,29 +1,35 @@
 package main
 
-import "fmt"
-
+import (
+	"fmt"
+	"log"
+	"net"
+	"sync"
+	"time"
+)
+	//Go 实现并发 TCP 端口扫描器
+//这里通过互斥锁来解决数据竞争问题，使用WaitGroup来解决协程同步的问题，TCPScanner代码如下：
 func main() {
-	var countryCapitalMap map[string]string
-	/* 创建集合 */
-	countryCapitalMap = make(map[string]string)
-
-	/* map 插入 key-value 对，各个国家对应的首都 */
-	countryCapitalMap["France"] = "Paris"
-	countryCapitalMap["Italy"] = "Rome"
-	countryCapitalMap["Japan"] = "Tokyo"
-	countryCapitalMap["India"] = "New Delhi"
-
-	/* 使用 key 输出 map 值 */
-	for country := range countryCapitalMap {
-		fmt.Println("Capital of",country,"is",countryCapitalMap[country])
+	var wg sync.WaitGroup
+	var mutex sync.Mutex
+	ports := make([]int, 0)
+	for i := 80; i <= 50000; i++ {
+		wg.Add(1)
+		go func(port int) {
+			defer wg.Done()
+			conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+			if err != nil {
+				log.Printf("Error:%v.Port:[%d]\n", err, port)
+			} else {
+				conn.Close()
+				log.Printf("Connection successful.Port:[%d]\n", port)
+				mutex.Lock()
+				ports = append(ports, port)
+				mutex.Unlock()
+			}
+		}(i)
 	}
-
-	/* 查看元素在集合中是否存在 */
-	captial, ok := countryCapitalMap["United States"]
-	/* 如果 ok 是 true, 则存在，否则不存在 */
-	if(ok){
-		fmt.Println("Capital of United States is", captial)
-	}else {
-		fmt.Println("Capital of United States is not present")
-	}
+	wg.Wait()
+	fmt.Printf("Opened ports:%v", ports)
 }
+
